@@ -1,0 +1,60 @@
+services:
+  # Служба для Spark Master и Worker, а также JupyterLab
+  spark:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+    container_name: spark-master
+    ports:
+      - "10000:8888" # JupyterLab
+      - "4040:4040"  # Spark UI
+      - "7077:7077"  # Spark Master port
+      - "8080:8080"  # Spark Master Web UI
+    volumes:
+      - ./data:/home/jovyan/work/data
+    environment:
+      - SPARK_MASTER=spark://spark-master:7077
+    networks:
+      - spark-hadoop-network
+    command: "start-notebook.sh --NotebookApp.token=''"
+
+  # Служба для Hadoop HDFS NameNode
+  hadoop-namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: hadoop-namenode
+    ports:
+      - "9870:9870" # Web UI для NameNode
+      - "9820:9820" # Портер для сервиса RPC
+    volumes:
+      - hadoop_namenode:/hadoop/dfs/name
+    environment:
+      - CLUSTER_NAME=test
+    env_file:
+      - ./hadoop-hive.env
+    networks:
+      - spark-hadoop-network
+
+  # Служба для Hadoop HDFS DataNode
+  hadoop-datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: hadoop-datanode
+    ports:
+      - "9864:9864" # Web UI для DataNode
+    volumes:
+      - hadoop_datanode:/hadoop/dfs/data
+    env_file:
+      - ./hadoop-hive.env
+    environment:
+      SERVICE_PRECONDITION: "hadoop-namenode:9870"
+    networks:
+      - spark-hadoop-network
+    depends_on:
+      - hadoop-namenode
+
+volumes:
+  hadoop_namenode:
+  hadoop_datanode:
+
+networks:
+  spark-hadoop-network:
+    driver: bridge
